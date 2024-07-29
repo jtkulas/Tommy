@@ -1,0 +1,334 @@
+---
+title: "Tommy's Dashboard"
+format: 
+  dashboard:
+    orientation: rows
+    logo: https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/8a394efc-d4bd-466a-aa96-0c444ab1cffb/dh3a70f-e6c903d0-28f3-45ea-86b6-fdbb3f7b2feb.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzhhMzk0ZWZjLWQ0YmQtNDY2YS1hYTk2LTBjNDQ0YWIxY2ZmYlwvZGgzYTcwZi1lNmM5MDNkMC0yOGYzLTQ1ZWEtODZiNi1mZGJiM2Y3YjJmZWIucG5nIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.Ms1F2DMn1QvnzRBaQfro-WiHLQywdnNQXEqJqovZgeU
+    theme: themes.scss
+server: shiny
+---
+
+```{r}
+#| context: setup
+#| message: false
+#| echo: false
+#| warning: false
+
+# install.packages("fontawesome")  ## if this file does not render, try installing `fontawesome` by typing "install.packages("fontawesome")" into your console
+
+library(psych) 
+library(plotly)
+library(fontawesome)
+
+####### 
+####### Actual data
+
+adopt <- read.csv("TEMP-CGEE Adopt-a-Drain Contract Mgmnt System - Overview.csv", header=TRUE)[-1,]
+names <- adopt[1,]
+
+adopt2 <- adopt[-c(1:2),]
+colnames(adopt2) <- names
+
+
+data <- read.csv("Copy of UniversalScoreCardALL.xlsx - UniversalScoreCardX.csv")
+
+
+```
+
+# Static Overviews 
+
+## Row {height=70%}
+
+```{r}
+#| title: "Example Static Map (Average Rental % by Tract)"
+#| padding: 0px
+#| message: false
+#| warning: false
+
+library(tidycensus)
+library(plotly)
+library(sf)
+library(dplyr)
+
+options(tigris_use_cache = TRUE)
+
+mn_income <- get_acs(
+  geography = "tract", 
+  variables = "B19013_001",
+  state = "MN", 
+  year = 2020,
+  geometry = TRUE
+)
+
+names(data)[names(data)=="GEOID20"] <- "GEOID"
+try <- merge(data,mn_income, all.x=TRUE)
+try2 <- st_as_sf(as_tibble(try))          ## sf object permits simpler plotting (see below)
+
+#plot(mn_income["estimate"])
+plot(try2["RENTALLPRCT"])
+```
+
+```{r}
+#| title: "Example Static Map (Median Income by County)"
+#| padding: 0px
+#| message: false
+#| warning: false
+
+## Switch to county
+
+state <- get_acs(geography = "county", 
+              variables = "B19013_001", 
+              state = "MN",
+              geometry=TRUE)
+
+plot(state["estimate"])
+```
+
+```{r}
+
+state$NAME = stringr::str_remove(state$NAME, " County, Minnesota")
+
+ggplot(state[c(1:25),], aes(x = estimate, y = reorder(NAME, estimate))) + 
+  geom_point(size = 3, color = "darkgreen") + 
+  labs(title = "Median household income", 
+       subtitle = "25 Random Counties in Minnesota", 
+       x = "", 
+       y = "Took from ACS") + 
+  theme_minimal(base_size = 12.5) + 
+  scale_x_continuous(labels = scales::label_dollar())
+```
+
+
+## Row {height="30%"} 
+
+```{r}
+#| content: valuebox
+#| title: "Total Population Represented"
+
+pop <- as.numeric(as.character(stringr::str_replace(data$Totpop,",","")))
+
+list(
+  icon = "people",
+  color = "danger",
+  value = format(sum(pop, na.rm=TRUE), big.mark=",")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Number of Counties"
+list(
+  icon = "geo-alt",
+  color = "success",
+  value = nrow(table(data$COUNTYFP20))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Datapoints"
+list(
+  icon = "clipboard-data",
+#  color = "danger",
+  value = nrow(data)
+)
+```
+
+# Filtered Maps
+
+## {.sidebar}
+
+#### Sortable Fields
+
+```{r}
+selectInput('size', 'County', data$COUNTYFP20)
+selectInput('color', 'Education', data$Education)
+# selectInput('invoice', 'Payment Status', adopt2$`Invoice/ Payment Status`)
+br()
+
+br()
+selectInput('x', 'X', names(data[c(29:30,1:25)])) 
+selectInput('y', 'Y', names(data), names(data)[[30]])
+```
+
+```{r}
+sliderInput('sampleSize', 'Sample Size', 
+            min=1, max=29,
+            value=10, 
+            step=1, round=0)
+
+```
+
+```{r}
+library(downloadthis)
+## Link in Github repo
+br()
+br()
+download_link(
+  link = "https://pdfhost.io/v/.k3UPUvES_Report",
+  button_label = "Download pdf report",
+  button_type = "danger",
+  has_icon = TRUE,
+  icon = "fa fa-save",
+  self_contained = FALSE
+)
+```
+
+##
+
+## 
+```{r}
+#| context: server
+
+dataset <- reactive({
+  data[sample(nrow(data), input$sampleSize),]
+})
+ 
+output$plot <- renderPlot({
+  
+  p <-   ggplot(
+    data(), 
+    aes_string(x=input$x, y=input$y)) 
+  
+  if (input$size == 'None')
+    p <- p + geom_point()
+  
+  if (input$size != 'None')
+    p <- p + geom_point(aes_string(size = input$size))
+
+  if (input$color != 'None')
+    p <- p + aes_string(color=input$color)
+  
+  facets <- paste(input$facet_row, '~', input$facet_col)
+  if (facets != '. ~ .')
+    p <- p + facet_grid(facets)
+  
+  if (input$jitter)
+    p <- p + geom_jitter(width = 0.8, height = .8)
+  if (input$smooth)
+    p <- p + geom_smooth()
+  
+p
+  
+})
+
+```
+
+##
+
+Content here is reflective of aggregated (current) client information and can be used for both project overview and summative reporting. 
+
+The information here can be filtered to the client's needs.
+
+Based on existing database fields, the current filters include region and contract status (these fields are being called upon in the sidebar but are not connected to the fictional map in this example template).
+
+```{r}
+#`Invoice/ Payment Status` here
+
+#https://www.snowflake.com/en/
+
+#Amazon AWS
+```
+
+```{r pie}
+#| echo: false
+#| warning: false
+#| title: "Example Contract Status (Fictional Data)"
+#| padding: 0px
+
+adopt3 <- adopt2[,c(1:15,33)]
+
+library(stringr)
+adopt3$amt <- str_replace(adopt3$`Amount Total`, "[$]","")
+adopt3$Amount <- as.numeric(as.character(adopt3$amt))
+
+currentpie <- adopt3 %>%               ## contract status
+  group_by(`Contract Status`) %>%
+  summarise(amount = sum(Amount))
+currentpie$n <- c(21,26,1,22,20)
+currentpie$amount <- c(1000,2000,3000,4000,5000)
+currentpie[1,1] <- "Unknown"
+
+colors <- c("#cc0000", "#940000", "#212121", "#5c1010", "#3b3b3b")
+
+fig <- plot_ly(currentpie, labels = ~`Contract Status`, values = ~amount, type = 'pie',
+        textposition = 'inside',
+        textinfo = 'label+percent',
+        insidetextfont = list(color = '#FFFFFF'),
+        hoverinfo = 'text',
+        text = ~paste(`Contract Status`, '(n =', 5, ")"),
+        marker = list(colors = colors,
+                      line = list(color = '#FFFFFF', width = 1)),
+                      #The 'pull' attribute can also be used to create space between the sectors
+        showlegend = FALSE)
+fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+# Individual 
+
+## {.sidebar}
+
+#### Placeholder filters - not currently linked
+
+[Database](https://docs.google.com/spreadsheets/d/1kRGabeAQpL6qt_BHWuxTlJ6ZzfGPBFE9FlNrcGbU99A/edit#gid=357708833)
+
+```{r}
+selectInput('size', 'Client', c("Washington City 1", "Washington City 2"))
+selectInput('color', 'Year', c("2024", "2023", "2022", "2021"))
+# selectInput('invoice', 'Payment Status', adopt2$`Invoice/ Payment Status`)
+br()
+```
+
+
+```{r}
+library(downloadthis)
+## Link in Github repo
+br()
+br()
+download_link(
+  link = "https://pdfhost.io/v/0w6bT4Qfj_Report_ind",
+  button_label = "Download Client Report",
+  button_type = "danger",
+  has_icon = TRUE,
+  icon = "fa fa-save",
+  self_contained = FALSE
+)
+
+br()
+download_link(
+  link = "https://pdfhost.io/v/BG0yy~.xE_invoice",
+  button_label = "Download Invoice",
+  button_type = "success",
+  has_icon = TRUE,
+  icon = "fa fa-money-bill",
+  self_contained = FALSE
+)
+```
+
+## {height=20%}
+
+Client since Date, Year; Invoice pattern (historical)
+
+```{r}
+#Subtotals here
+
+invoicing <- read.csv("TEMP-CGEE Adopt-a-Drain Contract Mgmnt System - WA City 1.csv")
+```
+
+```{r}
+#| title: "Invoice Screenshot"
+#| padding: 0px
+
+library(kableExtra)
+library(tidyverse)
+
+kbl(invoicing[c(7:27),c(6:21)], col.names=NULL) %>%
+  kable_paper("hover") %>%
+  kable_minimal()
+
+```
+
+
