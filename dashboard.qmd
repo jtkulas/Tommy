@@ -5,6 +5,8 @@ format:
     orientation: rows
     logo: https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/8a394efc-d4bd-466a-aa96-0c444ab1cffb/dh3a70f-e6c903d0-28f3-45ea-86b6-fdbb3f7b2feb.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzhhMzk0ZWZjLWQ0YmQtNDY2YS1hYTk2LTBjNDQ0YWIxY2ZmYlwvZGgzYTcwZi1lNmM5MDNkMC0yOGYzLTQ1ZWEtODZiNi1mZGJiM2Y3YjJmZWIucG5nIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.Ms1F2DMn1QvnzRBaQfro-WiHLQywdnNQXEqJqovZgeU
     theme: themes.scss
+    nav-buttons: 
+      - github
 server: shiny
 ---
 
@@ -23,15 +25,7 @@ library(fontawesome)
 ####### 
 ####### Actual data
 
-adopt <- read.csv("TEMP-CGEE Adopt-a-Drain Contract Mgmnt System - Overview.csv", header=TRUE)[-1,]
-names <- adopt[1,]
-
-adopt2 <- adopt[-c(1:2),]
-colnames(adopt2) <- names
-
-
 data <- read.csv("Copy of UniversalScoreCardALL.xlsx - UniversalScoreCardX.csv")
-
 
 ```
 
@@ -73,7 +67,7 @@ plot(try2["RENTALLPRCT"])
 #| padding: 0px
 #| message: false
 #| warning: false
-
+#| 
 ## Switch to county
 
 state <- get_acs(geography = "county", 
@@ -85,11 +79,14 @@ plot(state["estimate"])
 ```
 
 ```{r}
-
+#| title: "Median Income by County (Sorted))"
+#| padding: 0px
+#| eval: true
+#| 
 state$NAME = stringr::str_remove(state$NAME, " County, Minnesota")
 
-ggplot(state[c(1:25),], aes(x = estimate, y = reorder(NAME, estimate))) + 
-  geom_point(size = 3, color = "darkgreen") + 
+ggplot(sample_n(state,25), aes(x = estimate, y = reorder(NAME, estimate))) + 
+  geom_point(size = 3, color = "#6f42c1") + 
   labs(title = "Median household income", 
        subtitle = "25 Random Counties in Minnesota", 
        x = "", 
@@ -153,7 +150,7 @@ selectInput('y', 'Y', names(data), names(data)[[30]])
 
 ```{r}
 sliderInput('sampleSize', 'Sample Size', 
-            min=1, max=29,
+            min=1, max=nrow(data),
             value=10, 
             step=1, round=0)
 
@@ -214,52 +211,36 @@ p
 
 ```
 
-##
-
-Content here is reflective of aggregated (current) client information and can be used for both project overview and summative reporting. 
-
-The information here can be filtered to the client's needs.
-
-Based on existing database fields, the current filters include region and contract status (these fields are being called upon in the sidebar but are not connected to the fictional map in this example template).
-
-```{r}
-#`Invoice/ Payment Status` here
-
-#https://www.snowflake.com/en/
-
-#Amazon AWS
-```
+## Column {width=70%}
 
 ```{r pie}
 #| echo: false
 #| warning: false
-#| title: "Example Contract Status (Fictional Data)"
+#| title: "Example HighSpeed by County"
 #| padding: 0px
 
-adopt3 <- adopt2[,c(1:15,33)]
 
-library(stringr)
-adopt3$amt <- str_replace(adopt3$`Amount Total`, "[$]","")
-adopt3$Amount <- as.numeric(as.character(adopt3$amt))
+currentpie <- data %>%               ## contract status
+  group_by(COUNTYFP20) %>%
+  summarise(amount = sum(HighSpeed),
+            owner = round(mean(OwnerOcc, na.rm=TRUE),2))
 
-currentpie <- adopt3 %>%               ## contract status
-  group_by(`Contract Status`) %>%
-  summarise(amount = sum(Amount))
-currentpie$n <- c(21,26,1,22,20)
-currentpie$amount <- c(1000,2000,3000,4000,5000)
-currentpie[1,1] <- "Unknown"
 
-colors <- c("#cc0000", "#940000", "#212121", "#5c1010", "#3b3b3b")
+fips <- read.csv("MNfips.txt", header=FALSE)                     ## Qualitative names (County)
+names(fips)[2] <- "COUNTYFP20"
+currentpie2 <- merge(currentpie, fips, all.x=TRUE)
 
-fig <- plot_ly(currentpie, labels = ~`Contract Status`, values = ~amount, type = 'pie',
+#currentpie$n <- c(21,26,1,22,20)
+#currentpie$amount <- c(1000,2000,3000,4000,5000)
+#currentpie[1,1] <- "Unknown"
+
+fig <- plot_ly(currentpie2, labels = ~V1, values = ~amount, type = 'pie',
         textposition = 'inside',
         textinfo = 'label+percent',
         insidetextfont = list(color = '#FFFFFF'),
         hoverinfo = 'text',
-        text = ~paste(`Contract Status`, '(n =', 5, ")"),
-        marker = list(colors = colors,
-                      line = list(color = '#FFFFFF', width = 1)),
-                      #The 'pull' attribute can also be used to create space between the sectors
+        text = ~paste(V1, 'Average Owner\n Occupancy Rate=', owner),
+        colors = "BrBG",
         showlegend = FALSE)
 fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
          yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
@@ -267,9 +248,15 @@ fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showtickl
 fig
 ```
 
-# Individual 
+## Column {width=30%}
+
+![](https://facts.net/wp-content/uploads/2023/09/11-facts-about-pink-panther-the-pink-panther-1694403580.jpg)
+
+# Comparisons 
 
 ## {.sidebar}
+
+
 
 #### Placeholder filters - not currently linked
 
