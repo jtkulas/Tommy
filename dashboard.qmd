@@ -70,7 +70,7 @@ plot(try2["RENTALLPRCT"])
 #| 
 ## Switch to county
 
-state <- get_acs(geography = "county", 
+state <- get_acs(geography = "county",
               variables = "B19013_001", 
               state = "MN",
               geometry=TRUE)
@@ -117,13 +117,13 @@ list(
 list(
   icon = "geo-alt",
   color = "success",
-  value = nrow(table(data$COUNTYFP20))
+  value = nrow(table(data$COUNTYFP20))           ## Filtered based on selected county population
 )
 ```
 
 ```{r}
 #| content: valuebox
-#| title: "Datapoints"
+#| title: "Tracts"
 list(
   icon = "clipboard-data",
 #  color = "danger",
