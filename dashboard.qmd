@@ -71,7 +71,8 @@ plot(try2["RENTALLPRCT"])
 #| padding: 0px
 #| message: false
 #| warning: false
-#| 
+#| eval: true
+
 ## Switch to county
 
 state <- get_acs(geography = "county",
