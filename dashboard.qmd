@@ -27,6 +27,10 @@ library(fontawesome)
 
 data <- read.csv("Copy of UniversalScoreCardALL.xlsx - UniversalScoreCardX.csv")
 
+## Empty row at bottom - 8/14/24 
+data$chop <- apply(data, 1, function(x) length(which(is.na(x))))
+data <- data[ which(data$chop < 20), ]
+ 
 ```
 
 # Static Overviews 
@@ -81,7 +85,7 @@ plot(state["estimate"])
 ```{r}
 #| title: "Median Income by County (Sorted))"
 #| padding: 0px
-#| eval: true
+#| eval: false
 #| 
 state$NAME = stringr::str_remove(state$NAME, " County, Minnesota")
 
@@ -95,6 +99,23 @@ ggplot(sample_n(state,25), aes(x = estimate, y = reorder(NAME, estimate))) +
   scale_x_continuous(labels = scales::label_dollar())
 ```
 
+```{r}
+#| title: "Owner Occupancy by Census Tract (Sorted))"
+#| padding: 0px
+#| eval: true
+
+try2$oocpercent <- try2$OWOCC1/try2$OwnerOcc
+try2$chopped <- stringr::str_sub(try2$Tract,7,11)  ## last 3 digits not unique
+
+ggplot(try2, aes(x = oocpercent, y = reorder(chopped, oocpercent))) + 
+  geom_point(size = 3, color = "#f57a00") + 
+  labs(title = "Owner Occupancy %", 
+       subtitle = "Census Tracts in Dataset", 
+       x = "", 
+       y = "") + 
+  theme_minimal(base_size = 12.5) + 
+  scale_x_continuous(labels = scales::label_percent())
+```
 
 ## Row {height="30%"} 
 
