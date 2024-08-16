@@ -157,6 +157,10 @@ list(
 
 ## {.sidebar}
 
+[Check this out](https://plotly.com/r/choropleth-maps/)
+
+[Clickable maps here](https://plotly.com/r/choropleth-maps/)
+
 #### Sortable Fields
 
 ```{r}
